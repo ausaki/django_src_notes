@@ -144,6 +144,8 @@ class RegexPattern(CheckURLMixin):
         self.converters = {}
 
     def match(self, path):
+        # 为什么不使用 re.match 呢?
+        # 因为 re_path 的 pattern 都是 '^' 开头的, 所以这里的 search 和 match 是一样的.
         match = self.regex.search(path)
         if match:
             # If there are any named groups, use those as kwargs, ignoring
@@ -363,6 +365,17 @@ class URLPattern:
 
 class URLResolver:
     def __init__(self, pattern, urlconf_name, default_kwargs=None, app_name=None, namespace=None):
+        '''
+        pattern: RegexPattern 或 RoutePattern
+
+        urlconf_name: URLconf module name, 或者是含有 rulpatterns 属性的对象, 或者是 urlpatterns 列表.
+
+        default_kwargs: 从父 URLResolver 传递来的. path(pattern, include(child_urlconf), default_kwargs).
+
+        app_name: urls.py 的 app_name 属性.
+
+        namespace: include 函数的参数.
+        '''
         self.pattern = pattern
         # urlconf_name is the dotted Python path to the module defining
         # urlpatterns. It may also be an object with an urlpatterns attribute
@@ -414,12 +427,17 @@ class URLResolver:
             apps = {}
             language_code = get_language()
             for url_pattern in reversed(self.url_patterns):
+                # url_pattern 可能是 URLPattern, URLResolver
+                # url_pattern.pattern.regex 是 re.Pattern 对象
+                # 因此 p_pattern 就是正则表达式的模式串
+                # 这里的各种patter也太绕了
                 p_pattern = url_pattern.pattern.regex.pattern
                 if p_pattern.startswith('^'):
                     p_pattern = p_pattern[1:]
                 if isinstance(url_pattern, URLPattern):
                     self._callback_strs.add(url_pattern.lookup_str)
                     bits = normalize(url_pattern.pattern.regex.pattern)
+                    # 添加反向索引, 即从 viewname 到 url path 的映射.
                     lookups.appendlist(
                         url_pattern.callback,
                         (bits, p_pattern, url_pattern.default_args, url_pattern.pattern.converters)
@@ -489,39 +507,42 @@ class URLResolver:
         path = str(path)  # path may be a reverse_lazy object
         tried = []
         match = self.pattern.match(path)
-        if match:
-            new_path, args, kwargs = match
-            for pattern in self.url_patterns:
-                try:
-                    sub_match = pattern.resolve(new_path)
-                except Resolver404 as e:
-                    sub_tried = e.args[0].get('tried')
-                    if sub_tried is not None:
-                        tried.extend([pattern] + t for t in sub_tried)
-                    else:
-                        tried.append([pattern])
+        # 提前 raise, 减少缩进层次, 代码更易读.
+        if not match:
+            raise Resolver404({'path': path})
+        new_path, args, kwargs = match
+        for pattern in self.url_patterns:
+            try:
+                sub_match = pattern.resolve(new_path)
+            except Resolver404 as e:
+                sub_tried = e.args[0].get('tried')
+                if sub_tried is not None:
+                    tried.extend([pattern] + t for t in sub_tried)
                 else:
-                    if sub_match:
-                        # Merge captured arguments in match with submatch
-                        sub_match_dict = dict(kwargs, **self.default_kwargs)
-                        # Update the sub_match_dict with the kwargs from the sub_match.
-                        sub_match_dict.update(sub_match.kwargs)
-                        # If there are *any* named groups, ignore all non-named groups.
-                        # Otherwise, pass all non-named arguments as positional arguments.
-                        sub_match_args = sub_match.args
-                        if not sub_match_dict:
-                            sub_match_args = args + sub_match.args
-                        return ResolverMatch(
-                            sub_match.func,
-                            sub_match_args,
-                            sub_match_dict,
-                            sub_match.url_name,
-                            [self.app_name] + sub_match.app_names,
-                            [self.namespace] + sub_match.namespaces,
-                        )
                     tried.append([pattern])
-            raise Resolver404({'tried': tried, 'path': new_path})
-        raise Resolver404({'path': path})
+            else:
+                if not sub_match:
+                    tried.append([pattern])
+                    continue
+                # Merge captured arguments in match with submatch
+                sub_match_dict = dict(kwargs, **self.default_kwargs)
+                # Update the sub_match_dict with the kwargs from the sub_match.
+                sub_match_dict.update(sub_match.kwargs)
+                # If there are *any* named groups, ignore all non-named groups.
+                # Otherwise, pass all non-named arguments as positional arguments.
+                sub_match_args = sub_match.args
+                if not sub_match_dict:
+                    sub_match_args = args + sub_match.args
+                return ResolverMatch(
+                    sub_match.func,
+                    sub_match_args,
+                    sub_match_dict,
+                    sub_match.url_name,
+                    [self.app_name] + sub_match.app_names,
+                    [self.namespace] + sub_match.namespaces,
+                )
+                
+        raise Resolver404({'tried': tried, 'path': new_path})
 
     @cached_property
     def urlconf_module(self):

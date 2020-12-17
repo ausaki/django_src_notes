@@ -25,6 +25,18 @@ def resolve(path, urlconf=None):
 
 
 def reverse(viewname, urlconf=None, args=None, kwargs=None, current_app=None):
+    '''
+    viewname can be a URL pattern name or the callable view object.
+    
+    urlconf is the URLconf module containing the URL patterns to use for reversing.
+
+    args or kwargs is for named-groups in url pattern.
+
+    The current_app argument allows you to provide a hint to the resolver indicating the application to which the currently executing view belongs. 
+    This current_app argument is used as a hint to resolve application namespaces into URLs on specific application instances, 
+    according to the namespaced URL resolution strategy.
+    '''
+    
     if urlconf is None:
         urlconf = get_urlconf()
     resolver = get_resolver(urlconf)

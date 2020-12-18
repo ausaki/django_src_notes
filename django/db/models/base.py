@@ -75,8 +75,10 @@ class ModelBase(type):
 
         # Also ensure initialization is only performed for subclasses of Model
         # (excluding Model class itself).
+        # ModelBase 是 Model 的元类, isinstance(Model, ModelBase) == True
         parents = [b for b in bases if isinstance(b, ModelBase)]
         if not parents:
+            # 如果是 Model, 那么直接创建 Model 类
             return super_new(cls, name, bases, attrs)
 
         # Create the class.
@@ -88,15 +90,17 @@ class ModelBase(type):
         new_class = super_new(cls, name, bases, new_attrs)
         attr_meta = attrs.pop('Meta', None)
         abstract = getattr(attr_meta, 'abstract', False)
-        if not attr_meta:
-            meta = getattr(new_class, 'Meta', None)
-        else:
-            meta = attr_meta
+        # if not attr_meta:
+        #     meta = getattr(new_class, 'Meta', None)
+        # else:
+        #     meta = attr_meta
+        meta = attr_meta if attr_meta else getattr(new_class, 'Meta', None)
         base_meta = getattr(new_class, '_meta', None)
 
         app_label = None
 
         # Look for an application configuration to attach the model to.
+        # TODO
         app_config = apps.get_containing_app_config(module)
 
         if getattr(meta, 'app_label', None) is None:
@@ -110,7 +114,7 @@ class ModelBase(type):
 
             else:
                 app_label = app_config.label
-
+        
         new_class.add_to_class('_meta', Options(meta, app_label))
         if not abstract:
             new_class.add_to_class(
@@ -144,6 +148,7 @@ class ModelBase(type):
 
         # If the model is a proxy, ensure that the base class
         # hasn't been swapped out.
+        # TODO: 什么是 swapped
         if is_proxy and base_meta and base_meta.swapped:
             raise TypeError("%s cannot proxy the swapped model '%s'." % (name, base_meta.swapped))
 

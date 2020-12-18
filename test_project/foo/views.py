@@ -4,5 +4,5 @@ from django.urls import reverse
 # Create your views here.
 
 def abc(request):
-    reverse('foo:abc')
+    reverse('abc')
     return HttpResponse('hello world')

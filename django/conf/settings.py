@@ -4,6 +4,9 @@ Settings and configuration for Django.
 Values will be read from the module specified by the DJANGO_SETTINGS_MODULE environment
 variable, and then from django.conf.global_settings; see the global settings file for
 a list of all possible variables.
+
+这个模块将 global_settings 和 用户的 settings 读取到自己的模块属性中.
+在项目中如果想要读取设置, 直接 fromo django.conf.settings import XXX
 """
 
 import os
@@ -58,6 +61,7 @@ for app in me.INSTALLED_APPS:
 me.INSTALLED_APPS = new_installed_apps
 
 # save DJANGO_SETTINGS_MODULE in case anyone in the future cares
+# 前面不是设置了 me.SETTINGS_MODULE 吗?
 me.SETTINGS_MODULE = os.environ.get(ENVIRONMENT_VARIABLE, '')
 
 # move the time zone info into os.environ

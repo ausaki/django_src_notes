@@ -70,9 +70,15 @@ def orderlist2sql(order_list, opts, prefix=''):
     return ', '.join(output)
 
 def get_module(app_label, module_name):
-    return __import__('%s.%s.%s' % (MODEL_PREFIX, app_label, module_name), '', '', [''])
+    '''
+    返回 app 模块中的 Model
+    '''
+    return __import__('.'.join(MODEL_PREFIX, app_label, module_name), '', '', [''])
 
 def get_app(app_label):
+    '''
+    返回 app 模块
+    '''
     return __import__('%s.%s' % (MODEL_PREFIX, app_label), '', '', [''])
 
 _installed_models_cache = None
@@ -229,6 +235,9 @@ class Options:
         return '<Options for %s>' % self.module_name
 
     def copy(self, **kwargs):
+        '''
+        复制自己并合并kwargs
+        '''
         args = self._orig_init_args.copy()
         args.update(kwargs)
         return self.__class__(**args)
@@ -247,7 +256,8 @@ class Options:
         """
         Returns the requested field by name. Raises FieldDoesNotExist on error.
         """
-        to_search = many_to_many and (self.fields + self.many_to_many) or self.fields
+        # 提高可读性
+        to_search = (self.fields + self.many_to_many) if many_to_many else self.fields 
         for f in to_search:
             if f.name == name:
                 return f
@@ -413,6 +423,7 @@ class ModelBase(type):
             if isinstance(obj, Field):
                 obj.set_name(obj_name)
                 fields.append(obj)
+                # 这里直接在循环中修改 attrs 其实是没有问题的, 因为这时 python2 的代码, dict.items() 返回的是 list 并不是迭代器.
                 del attrs[obj_name]
 
         # Sort the fields in the order that they were created. The

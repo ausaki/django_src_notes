@@ -1,0 +1,53 @@
+.. django_docs documentation master file, created by
+   sphinx-quickstart on Sun Dec 20 22:49:35 2020.
+   You can adapt this file completely to your liking, but it should at least
+   contain the root `toctree` directive.
+
+Welcome to django_docs's documentation!
+=======================================
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents:
+
+   tutorial01.txt
+   tutorial02
+   tutorial03
+   tutorial04
+   overview
+   url_dispatch
+   redirects
+   request_response
+   model-api
+   settings
+   authentication
+   cache
+   db-api
+   sessions
+   middleware
+   django-admin
+   flatpages
+   forms
+   generic_views
+   i18n
+   install
+   legacy_databases
+   modpython
+   syndication_feeds
+   templates_python
+   templates
+   admin_css
+   writing-apps-guide-outline
+   design_philosophies
+   faq
+   outputting_csv
+   outputting_pdf
+   
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
+

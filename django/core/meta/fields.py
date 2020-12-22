@@ -1,3 +1,5 @@
+# -*- coding: utf8 -*-
+
 from django.conf import settings
 from django.core import formfields, validators
 from django.core.exceptions import ObjectDoesNotExist

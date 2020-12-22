@@ -1,3 +1,4 @@
+# -*- coding: utf -*-
 from django.conf import settings
 from django.core import formfields, validators
 from django.core import db
@@ -73,7 +74,7 @@ def get_module(app_label, module_name):
     '''
     返回 app 模块中的 Model
     '''
-    return __import__('.'.join(MODEL_PREFIX, app_label, module_name), '', '', [''])
+    return __import__('.'.join((MODEL_PREFIX, app_label, module_name)), '', '', [''])
 
 def get_app(app_label):
     '''
@@ -574,7 +575,7 @@ class ModelBase(type):
 
         # Create the class, because we need it to use in currying.
         new_class = type.__new__(cls, name, bases, attrs)
-
+        
         # Give the class a docstring -- its definition.
         if new_class.__doc__ is None:
             new_class.__doc__ = "%s.%s(%s)" % (opts.module_name, name, ", ".join([f.name for f in opts.fields]))
@@ -752,6 +753,10 @@ class Model:
 # CORE METHODS #############################
 
 def method_init(opts, self, *args, **kwargs):
+    '''
+    实例化一个 Model, 参数就是各个字段. 
+
+    '''
     if kwargs:
         for f in opts.fields:
             if isinstance(f.rel, ManyToOne):
@@ -811,6 +816,7 @@ def method_save(opts, self):
         else:
             record_exists = False
     if not pk_set or not record_exists:
+        # 这里好像没有保存用户设置的 pk. field_names 没有包括 pk.
         field_names = [db.db.quote_name(f.column) for f in opts.fields if not isinstance(f, AutoField)]
         placeholders = ['%s'] * len(field_names)
         db_values = [f.get_db_prep_save(f.pre_save(getattr(self, f.attname), True)) for f in opts.fields if not isinstance(f, AutoField)]
@@ -929,14 +935,9 @@ def method_get_many_to_many(field_with_rel, self):
 # Handles setting many-to-many relationships.
 # Example: Poll.set_sites()
 def method_set_many_to_many(rel_field, self, id_list):
-    current_ids = [obj.id for obj in method_get_many_to_many(rel_field, self)]
-    ids_to_add, ids_to_delete = dict([(i, 1) for i in id_list]), []
-    for current_id in current_ids:
-        if current_id in id_list:
-            del ids_to_add[current_id]
-        else:
-            ids_to_delete.append(current_id)
-    ids_to_add = ids_to_add.keys()
+    current_ids = set(obj.id for obj in method_get_many_to_many(rel_field, self))
+    id_list = set(id_list)
+    ids_to_add, ids_to_delete = id_list - current_ids, current_ids - id_list
     # Now ids_to_add is a list of IDs to add, and ids_to_delete is a list of IDs to delete.
     if not ids_to_delete and not ids_to_add:
         return False # No change

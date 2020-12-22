@@ -1,3 +1,4 @@
+# -*- coding: utf8 -*-
 """
 Settings and configuration for Django.
 

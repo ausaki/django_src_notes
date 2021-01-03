@@ -1,4 +1,5 @@
 from django.conf.settings import SESSION_COOKIE_NAME, SESSION_COOKIE_AGE, SESSION_COOKIE_DOMAIN
+# 这里的 sessions 是 Django 自动创建的一个 model module, 支持 get_object, get_list 等查询方法.
 from django.models.core import sessions
 from django.utils.cache import patch_vary_headers
 import datetime
@@ -62,6 +63,9 @@ class SessionMiddleware:
     def process_response(self, request, response):
         # If request.session was modified, or if response.session was set, save
         # those changes and set a session cookie.
+        
+        # 如果 modified == True, 下面的代码直接返回 response, 并不会设置 session cookie, 那么为什么一定要执行 `patch_vary_headers` 呢?
+        # `patch_vary_headers` 的作用是往 `Vary` header 添加字段.
         patch_vary_headers(response, ('Cookie',))
         try:
             modified = request.session.modified

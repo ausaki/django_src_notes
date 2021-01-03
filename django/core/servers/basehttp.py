@@ -56,12 +56,10 @@ def _formatparam(param, value=None, quote=1):
     """
     if value is not None and len(value) > 0:
         if quote or tspecials.search(value):
-            value = value.replace('\\', '\\\\').replace('"', r'\"')
+            value = value.replace('\\', r'\\').replace('"', r'\"')
             return '%s="%s"' % (param, value)
-        else:
-            return '%s=%s' % (param, value)
-    else:
-        return param
+        return '%s=%s' % (param, value)
+    return param
 
 class Headers:
     """Manage a collection of HTTP response headers"""

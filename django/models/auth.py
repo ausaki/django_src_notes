@@ -3,6 +3,13 @@ from django.models import core
 from django.utils.translation import gettext_lazy as _
 
 class Permission(meta.Model):
+    '''
+    Permission 表示权限表, Model 可以在 class Meta 中自定义专属的权限.
+
+    name 表示权限名称
+    package 表示 opts.app_label
+    codename 表示权限代码, 一般就是权限名称的缩写.
+    '''
     name = meta.CharField(_('name'), maxlength=50)
     package = meta.ForeignKey(core.Package, db_column='package')
     codename = meta.CharField(_('codename'), maxlength=100)
@@ -116,6 +123,7 @@ class User(meta.Model):
     def get_all_permissions(self):
         if not hasattr(self, '_perm_cache'):
             import sets
+            # `self.get_permission_list()` 返回 user 具有的权限列表, 这个方法是 Django 动态注入的. 实际方法是 django/core/meta/__init__.py 中的 `method_get_many_to_many`
             self._perm_cache = sets.Set(["%s.%s" % (p.package_id, p.codename) for p in self.get_permission_list()])
             self._perm_cache.update(self.get_group_permissions())
         return self._perm_cache
@@ -130,10 +138,7 @@ class User(meta.Model):
 
     def has_perms(self, perm_list):
         "Returns True if the user has each of the specified permissions."
-        for perm in perm_list:
-            if not self.has_perm(perm):
-                return False
-        return True
+        return all(self.has_perm(perm) for perm in perm_list)
 
     def has_module_perms(self, package_name):
         "Returns True if the user has any permissions in the given package."

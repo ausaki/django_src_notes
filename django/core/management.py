@@ -356,6 +356,7 @@ def init():
         auth = meta.get_app('auth')
         core = meta.get_app('core')
         cursor = db.db.cursor()
+        # get_sql_create(core) + get_sql_initial_data(core) 可以简化为 get_sql_all(core)
         for sql in get_sql_create(core) + get_sql_create(auth) + get_sql_initial_data(core) + get_sql_initial_data(auth):
             cursor.execute(sql)
         cursor.execute("INSERT INTO %s (%s, %s) VALUES ('example.com', 'Example site')" % \
@@ -719,6 +720,8 @@ runserver.args = '[optional port number, or ipaddr:port]'
 
 def createcachetable(tablename):
     "Creates the table needed to use the SQL cache backend"
+    # 这段代码和 get_sql_create 重复了.
+    
     from django.core import db, meta
     fields = (
         # "key" is a reserved word in MySQL, so use "cache_key" instead.

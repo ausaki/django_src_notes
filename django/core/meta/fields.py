@@ -161,17 +161,17 @@ class Field(object):
         "Returns field's value prepared for database lookup."
         if lookup_type in ('exact', 'gt', 'gte', 'lt', 'lte', 'ne', 'year', 'month', 'day'):
             return [value]
-        elif lookup_type in ('range', 'in'):
+        if lookup_type in ('range', 'in'):
             return value
-        elif lookup_type in ('contains', 'icontains'):
+        if lookup_type in ('contains', 'icontains'):
             return ["%%%s%%" % prep_for_like_query(value)]
-        elif lookup_type == 'iexact':
+        if lookup_type == 'iexact':
             return [prep_for_like_query(value)]
-        elif lookup_type in ('startswith', 'istartswith'):
+        if lookup_type in ('startswith', 'istartswith'):
             return ["%s%%" % prep_for_like_query(value)]
-        elif lookup_type in ('endswith', 'iendswith'):
+        if lookup_type in ('endswith', 'iendswith'):
             return ["%%%s" % prep_for_like_query(value)]
-        elif lookup_type == 'isnull':
+        if lookup_type == 'isnull':
             return []
         raise TypeError, "Field has invalid lookup: %s" % lookup_type
 
@@ -610,7 +610,8 @@ class ForeignKey(Field):
         try:
             to_name = to._meta.object_name.lower()
         except AttributeError: # to._meta doesn't exist, so it must be RECURSIVE_RELATIONSHIP_CONSTANT
-            assert to == 'self', "ForeignKey(%r) is invalid. First parameter to ForeignKey must be either a model or the string %r" % (to, RECURSIVE_RELATIONSHIP_CONSTANT)
+            # 外键指向自身('self'), 在 ModelBase 中会设置 to 等于正确的对象.
+            assert to == RECURSIVE_RELATIONSHIP_CONSTANT, "ForeignKey(%r) is invalid. First parameter to ForeignKey must be either a model or the string %r" % (to, RECURSIVE_RELATIONSHIP_CONSTANT)
             kwargs['verbose_name'] = kwargs.get('verbose_name', '')
         else:
             to_field = to_field or to._meta.pk.name

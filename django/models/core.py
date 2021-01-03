@@ -1,3 +1,4 @@
+# -*- coding: utf8 -*-
 import base64, md5, random, sys
 import cPickle as pickle
 from django.core import meta
@@ -25,6 +26,7 @@ class Site(meta.Model):
         return get_object(pk=SITE_ID)
 
 class Package(meta.Model):
+    # label 和 name 都是 opts.app_label, 也就是定义 Model 的那个模块的文件名, 例如 polls.
     label = meta.CharField(_('label'), maxlength=20, primary_key=True)
     name = meta.CharField(_('name'), maxlength=30, unique=True)
     class META:
@@ -37,6 +39,13 @@ class Package(meta.Model):
         return self.name
 
 class ContentType(meta.Model):
+    '''
+    ContentType 表示 Model
+    
+    name 等于 opts.verbose_name
+    package 等于 opts.app_label
+    python_module_name 等于 opts.module_name
+    '''
     name = meta.CharField(_('name'), maxlength=100)
     package = meta.ForeignKey(Package, db_column='package')
     python_module_name = meta.CharField(_('python module name'), maxlength=50)

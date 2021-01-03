@@ -1,3 +1,4 @@
+# -*- coding: utf8 -*-
 from django.conf import settings
 from django.utils import httpwrappers
 from django.core.mail import mail_managers
@@ -36,11 +37,13 @@ class CommonMiddleware:
             new_url[0] = 'www.' + old_url[0]
         # Append a slash if append_slash is set and the URL doesn't have a
         # trailing slash or a file extension.
+        # 如果不包含扩展名才添加 '/', 我觉得这个限制其实是可以删除的.
         if settings.APPEND_SLASH and (old_url[1][-1] != '/') and ('.' not in old_url[1].split('/')[-1]):
             new_url[1] = new_url[1] + '/'
         if new_url != old_url:
             # Redirect
             newurl = "%s://%s%s" % (os.environ.get('HTTPS') == 'on' and 'https' or 'http', new_url[0], new_url[1])
+            # 理论上 POST 的 url 也可以包含 Query string 啊.
             if request.GET:
                 newurl += '?' + request.GET.urlencode()
             return httpwrappers.HttpResponseRedirect(newurl)
@@ -55,6 +58,7 @@ class CommonMiddleware:
                 # send a note to the managers.
                 domain = request.META['HTTP_HOST']
                 referer = request.META.get('HTTP_REFERER', None)
+                # `domain in referer` 判断是不严谨的, domain 可以出现在 referer 的 path 中.
                 is_internal = referer and (domain in referer)
                 path = request.get_full_path()
                 if referer and not _is_ignorable_404(path) and (is_internal or '?' not in referer):

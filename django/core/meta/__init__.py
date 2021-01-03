@@ -1,4 +1,4 @@
-# -*- coding: utf -*-
+# -*- coding: utf8 -*-
 from django.conf import settings
 from django.core import formfields, validators
 from django.core import db
@@ -72,13 +72,13 @@ def orderlist2sql(order_list, opts, prefix=''):
 
 def get_module(app_label, module_name):
     '''
-    返回 app 模块中的 Model
+    返回 `dajngo.models.app_label.module_name`, Django 动态创建的一个 module, types.ModuleType
     '''
     return __import__('.'.join((MODEL_PREFIX, app_label, module_name)), '', '', [''])
 
 def get_app(app_label):
     '''
-    返回 app 模块
+    返回 `django.models.app_label`, 这个模块定义了 Model .
     '''
     return __import__('%s.%s' % (MODEL_PREFIX, app_label), '', '', [''])
 
@@ -156,6 +156,14 @@ class BadKeywordArguments(Exception):
     pass
 
 class Options:
+    '''
+    保存和 Model 相关的信息: fields, ordering, admin, db_table 等等
+    
+    这些信息来自 class Meta 中定义的类属性.
+
+    module_name 一般等于 Model 类的名称 + 's', 具体参考 ModelBase 和 get_module_name 函数.
+    app_label 一般等于定义 Model 的文件的名称, 例如 Poll Model 的 app_label 等于 polls, 具体参考 ModelBase.
+    '''
     def __init__(self, module_name='', verbose_name='', verbose_name_plural='', db_table='',
         fields=None, ordering=None, unique_together=None, admin=None, has_related_links=False,
         where_constraints=None, object_name=None, app_label=None,
@@ -244,6 +252,9 @@ class Options:
         return self.__class__(**args)
 
     def get_model_module(self):
+        '''
+        返回 Django 动态创建的 module, 形如 `django.models.polls.polls`
+        '''
         return get_module(self.app_label, self.module_name)
 
     def get_content_type_id(self):
@@ -311,6 +322,7 @@ class Options:
                         if f.rel and self == f.rel.to:
                             rel_objs.append((klass._meta, f))
             if self.has_related_links:
+                #TODO: 什么是 relatedlink
                 # Manually add RelatedLink objects, which are a special case.
                 relatedlinks = get_module('relatedlinks', 'relatedlinks')
                 # Note that the copy() is very important -- otherwise any
@@ -404,10 +416,28 @@ get_module_name = lambda class_name: class_name.lower() + 's'
 # Calculate the verbose_name by converting from InitialCaps to "lowercase with spaces".
 get_verbose_name = lambda class_name: re.sub('([A-Z])', ' \\1', class_name).lower().strip()
 
+
 class ModelBase(type):
-    "Metaclass for all models"
+    '''Metaclass for all models
+
+    这个版本的 Django 实现 ORM 的方法实在是太别扭了, 各种动态创建的方法. 
+
+    动态地往 Model 添加各种 `get_xxx` 方法, 例如:
+    
+    - 获取外键对象的方法.
+    - 获取多对多对象列表的方法.
+
+    动态创建一个 Module(types.ModuleType), 然后在这个 Module 里面添加各种 ORM 相关的方法(CRUD). 
+    同时将 Model 添加到该 Module, 通过 Module.Klass 可以读取 Model.
+    Module 的路径形如 `django.models.polls.polls`, 可以通过 sys.modules 获取.
+
+    每创建一个 Model, 就将其添加到 app_package._MODELS 列表.
+
+    由于已经熟悉新版本的 Django, 现在看最初版本的源码, 会对一些概念产生误会.
+    '''
     def __new__(cls, name, bases, attrs):
         # If this isn't a subclass of Model, don't do anything special.
+        # 换句话说, 如果要创建的类是 meta.Model, 那么直接调用 type 创建它.
         if not bases:
             return type.__new__(cls, name, bases, attrs)
 
@@ -424,7 +454,7 @@ class ModelBase(type):
             if isinstance(obj, Field):
                 obj.set_name(obj_name)
                 fields.append(obj)
-                # 这里直接在循环中修改 attrs 其实是没有问题的, 因为这时 python2 的代码, dict.items() 返回的是 list 并不是迭代器.
+                # 这里直接在循环中修改 attrs 其实是没有问题的, 因为这是 python2 的代码, dict.items() 返回的是 list 并不是迭代器.
                 del attrs[obj_name]
 
         # Sort the fields in the order that they were created. The
@@ -437,6 +467,7 @@ class ModelBase(type):
         # with the overrides from this class.
         replaces_module = None
         if bases[0] != Model:
+            # 添加 bases[0] 中的 fields 到当前的 fields
             field_names = [f.name for f in fields]
             remove_fields = meta_attrs.pop('remove_fields', [])
             for f in bases[0]._meta._orig_init_args['fields']:
@@ -450,8 +481,10 @@ class ModelBase(type):
             # Pass any Options overrides to the base's Options instance, and
             # simultaneously remove them from attrs. When this is done, attrs
             # will be a dictionary of custom methods, plus __module__.
+            # 合并 bases[0] 的 meta options
             meta_overrides = {'fields': fields, 'module_name': get_module_name(name), 'verbose_name': get_verbose_name(name)}
             for k, v in meta_attrs.items():
+                # 前面已经 del meta_attrs['__module__'], 所以这里的 k != '__module__' 是多余的.
                 if not callable(v) and k != '__module__':
                     meta_overrides[k] = meta_attrs.pop(k)
             opts = bases[0]._meta.copy(**meta_overrides)
@@ -503,6 +536,8 @@ class ModelBase(type):
         for k, v in attrs.items():
             if k in ('__module__', '__init__', '_overrides', '__doc__'):
                 continue # Skip the important stuff.
+            # 这里断言 callable(v), 说明 Model 类中定义的类属性除了__xxx__, Field 和 class Meta, 其余都是方法.
+            # 在上面的代码中, attrs.pop('Meta'), attrs.pop(field), 因此剩余的属性应该都是方法.
             assert callable(v), "%r is an invalid model parameter." % k
             # Give the function a function attribute "custom" to designate that
             # it's a custom function/method.
@@ -548,8 +583,10 @@ class ModelBase(type):
         for f in opts.fields:
             # If the object has a relationship to itself, as designated by
             # RECURSIVE_RELATIONSHIP_CONSTANT, create that relationship formally.
+            # 将指向自身的外键设置为正确的对象.
             if f.rel and f.rel.to == RECURSIVE_RELATIONSHIP_CONSTANT:
                 f.rel.to = opts
+                # 前面从 attrs 中取出 Field 时, 已经通过 Field.set_name() 设置了 f.name, 所以下面这行代码是多余的.
                 f.name = f.name or (f.rel.to.object_name.lower() + '_' + f.rel.to.pk.name)
                 f.verbose_name = f.verbose_name or f.rel.to.verbose_name
                 f.rel.field_name = f.rel.field_name or f.rel.to.pk.name
@@ -682,10 +719,12 @@ class ModelBase(type):
 
         # Get a reference to the module the class is in, and dynamically add
         # the new module to it.
+        # app_package 等于形如 'django.models.polls' 的模块
         app_package = sys.modules.get(new_class.__module__)
         if replaces_module is not None:
             app_label = replaces_module[0]
         else:
+            # 将 new_mod 添加到 app_package
             app_package.__dict__[opts.module_name] = new_mod
             app_label = app_package.__name__[app_package.__name__.rfind('.')+1:]
 
@@ -791,6 +830,13 @@ def method_eq(opts, self, other):
     return isinstance(other, self.__class__) and getattr(self, opts.pk.attname) == getattr(other, opts.pk.attname)
 
 def method_save(opts, self):
+    '''
+    1. _pre_save
+    2. 如果已经存在, 那么更新.
+    3. 否则插入一条新纪录, 注意这里有一个bug, 即使应用手动设置了 pk, Django 也不会使用该 pk.
+    4. 如果插入一条新纪录, 那么更新 pk. pk = db.get_last_insert_id()
+    5. _post_save
+    '''
     # Run any pre-save hooks.
     if hasattr(self, '_pre_save'):
         self._pre_save()
@@ -837,11 +883,22 @@ def method_save(opts, self):
         self._post_save()
 
 def method_delete(opts, self):
+    '''
+    1. _pre_delete
+    2. 删除所有通过外键或一对一连接本对象的记录
+    3. 删除所有通过多对多连接本对象的记录
+    4. 删除本对象的多对多记录
+    5. 删除本对象自身的记录
+    6. 如果本对象包含 FileField, 而且该文件没有其它记录指向它, 那么删除本地文件.
+    7. _post_delete
+    '''
     assert getattr(self, opts.pk.attname) is not None, "%r can't be deleted because it doesn't have an ID."
     # Run any pre-delete hooks.
     if hasattr(self, '_pre_delete'):
         self._pre_delete()
     cursor = db.db.cursor()
+    # opts.get_all_related_objects 返回所有通过外键或 OneToOneField 连接到本对象的对象.
+    # 删除所有通过外键或一对一连接本对象的记录.
     for rel_opts, rel_field in opts.get_all_related_objects():
         rel_opts_name = opts.get_rel_object_method_name(rel_opts, rel_field)
         if isinstance(rel_field.rel, OneToOne):
@@ -852,17 +909,25 @@ def method_delete(opts, self):
             else:
                 sub_obj.delete()
         else:
+            # 下面的循环可以替换成一条 SQL 语句:
+            # cursor.excute('DELETE FROM %s WHERE %s=%%s' % \
+            #     (db.db.quote_name(rel_opts.db_table), db.db.quote_name(rel_field.column)), 
+            #     [getattr(self, opts.pk.attname)])
             for sub_obj in getattr(self, 'get_%s_list' % rel_opts_name)():
                 sub_obj.delete()
+    # opts.get_all_related_many_to_many_objects 返回多对多对象
+    # 删除所有通过多对多连接本对象的记录
     for rel_opts, rel_field in opts.get_all_related_many_to_many_objects():
         cursor.execute("DELETE FROM %s WHERE %s=%%s" % \
             (db.db.quote_name(rel_field.get_m2m_db_table(rel_opts)),
             db.db.quote_name(self._meta.object_name.lower() + '_id')), [getattr(self, opts.pk.attname)])
+    # 删除本对象的多对多记录
     for f in opts.many_to_many:
         cursor.execute("DELETE FROM %s WHERE %s=%%s" % \
             (db.db.quote_name(f.get_m2m_db_table(opts)),
             db.db.quote_name(self._meta.object_name.lower() + '_id')),
             [getattr(self, opts.pk.attname)])
+    # 删除本对象自身的记录
     cursor.execute("DELETE FROM %s WHERE %s=%%s" % \
         (db.db.quote_name(opts.db_table), db.db.quote_name(opts.pk.column)),
         [getattr(self, opts.pk.attname)])
@@ -880,6 +945,13 @@ def method_delete(opts, self):
         self._post_delete()
 
 def method_get_next_in_order(opts, order_field, self):
+    '''
+    只有设置了 Meta.order_with_respect_to 才会添加该方法到 Model.
+    Meta.order_with_respect_to 指定一个用于排序的字段, Django 在创建表时, 会额外添加一个 '_order' 字段.
+    '_order' 字段保存的值等于 'select count(*) from db_table where <Meta.order_with_respect_to> = self.order_with_respect_to'
+    换句话说, '_order' 字段表示在插入当前记录时, 表中有多少个记录的 'Meta.order_with_respect_to' 字段等于 'self.order_with_respect_to'.
+    在 'Meta.order_with_respect_to' 字段相等的记录中, 它们的 '_order' 是一个递增的计数值.
+    '''
     if not hasattr(self, '_next_in_order_cache'):
         self._next_in_order_cache = opts.get_model_module().get_object(order_by=('_order',),
             where=['%s > (SELECT %s FROM %s WHERE %s=%%s)' % \
@@ -903,6 +975,9 @@ def method_get_previous_in_order(opts, order_field, self):
 
 # Example: Story.get_dateline()
 def method_get_many_to_one(field_with_rel, self):
+    '''
+    获取外键字段
+    '''
     cache_var = field_with_rel.get_cache_name()
     if not hasattr(self, cache_var):
         val = getattr(self, field_with_rel.attname)
@@ -916,6 +991,9 @@ def method_get_many_to_one(field_with_rel, self):
 # Handles getting many-to-many related objects.
 # Example: Poll.get_site_list()
 def method_get_many_to_many(field_with_rel, self):
+    '''
+    获取多对多对象列表, 
+    '''
     rel = field_with_rel.rel.to
     cache_var = '_%s_cache' % field_with_rel.name
     if not hasattr(self, cache_var):
@@ -967,9 +1045,16 @@ def method_set_many_to_many(rel_field, self, id_list):
 # Handles related-object retrieval.
 # Examples: Poll.get_choice(), Poll.get_choice_list(), Poll.get_choice_count()
 def method_get_related(method_name, rel_mod, rel_field, self, **kwargs):
+    '''
+    这个方法在 django.models 的 __init__.py 中被添加到 Model 中.
+    method_name 一般等于 `get_object`, `get_count`, `get_list`
+
+    反向获取关联至本对象的记录
+    '''
     if self._meta.has_related_links and rel_mod.Klass._meta.module_name == 'relatedlinks':
         kwargs['object_id__exact'] = getattr(self, rel_field.rel.field_name)
     else:
+        # 这里 rel_field.rel.to.pk.name 和 rel_field.rel.field_name 是相等的
         kwargs['%s__%s__exact' % (rel_field.name, rel_field.rel.to.pk.name)] = getattr(self, rel_field.rel.field_name)
     kwargs.update(rel_field.rel.lookup_overrides)
     return getattr(rel_mod, method_name)(**kwargs)
@@ -977,6 +1062,11 @@ def method_get_related(method_name, rel_mod, rel_field, self, **kwargs):
 # Handles adding related objects.
 # Example: Poll.add_choice()
 def method_add_related(rel_obj, rel_mod, rel_field, self, *args, **kwargs):
+    '''
+    这个方法在 django.models 的 __init__.py 中被添加到 Model 中.
+
+    反向添加一个关联对象
+    '''
     init_kwargs = dict(zip([f.attname for f in rel_obj.fields if f != rel_field and not isinstance(f, AutoField)], args))
     init_kwargs.update(kwargs)
     for f in rel_obj.fields:
@@ -990,14 +1080,22 @@ def method_add_related(rel_obj, rel_mod, rel_field, self, *args, **kwargs):
 # Handles related many-to-many object retrieval.
 # Examples: Album.get_song(), Album.get_song_list(), Album.get_song_count()
 def method_get_related_many_to_many(method_name, opts, rel_mod, rel_field, self, **kwargs):
+    '''
+    反向获取多对多对象, 利用 rel_mod.method_name 方法.
+    '''
     kwargs['%s__%s__exact' % (rel_field.name, opts.pk.name)] = getattr(self, opts.pk.attname)
     return getattr(rel_mod, method_name)(**kwargs)
 
 # Handles setting many-to-many related objects.
 # Example: Album.set_songs()
 def method_set_related_many_to_many(rel_opts, rel_field, self, id_list):
+    '''
+    反向设置多对多对象.
+
+    上面的 method_set_many_to_many 计算出 ids_to_add, ids_to_delete, 然而这里却没有.
+    '''
     id_list = map(int, id_list) # normalize to integers
-    rel = rel_field.rel.to
+    rel = rel_field.rel.to # rel 不就是 self._meta 吗
     m2m_table = rel_field.get_m2m_db_table(rel_opts)
     this_id = getattr(self, self._meta.pk.attname)
     cursor = db.db.cursor()
@@ -1129,6 +1227,9 @@ def get_absolute_url(opts, func, self):
     return settings.ABSOLUTE_URL_OVERRIDES.get('%s.%s' % (opts.app_label, opts.module_name), func)(self)
 
 def _get_where_clause(lookup_type, table_prefix, field_name, value):
+    '''
+    拼接 lookup 的 where 语句, 例如: foo__exact = 42, 对应的函数调用是 _get_where_clause('exact', '', 'foo', 42)
+    '''
     if table_prefix.endswith('.'):
         table_prefix = db.db.quote_name(table_prefix[:-1])+'.'
     field_name = db.db.quote_name(field_name)
@@ -1200,6 +1301,10 @@ def function_get_count(opts, **kwargs):
     return cursor.fetchone()[0]
 
 def function_get_values_iterator(opts, klass, **kwargs):
+    '''
+    参数 fields 中的元素是字段名(Field.name), 然而返回的字典的键却是列名(Filed.column), 
+    当然大多数情况下字段名和列名是一致的. 如果不一致可能会导致一些误会从而产生 bug.
+    '''
     # select_related and select aren't supported in get_values().
     kwargs['select_related'] = False
     kwargs['select'] = {}
@@ -1228,6 +1333,8 @@ def _fill_table_cache(opts, select, tables, where, old_prefix, cache_tables_seen
     """
     Helper function that recursively populates the select, tables and where (in
     place) for fill-cache queries.
+    
+    当查询参数中包含 select_related 时, 递归遍历关联对象, 不断补充 `select`, `tables`, `where`.
     """
     for f in opts.fields:
         if f.rel and not f.null:
@@ -1265,6 +1372,7 @@ def _parse_lookup(kwarg_items, opts, table_count=0):
         if kwarg_value is None:
             continue
         if kwarg == '_or':
+            # 在文档中没找到相关描述, 不管根据代码可以推理出 _or 的值是一个嵌套列表: [[(lookup1, val1), (lookup2, val2)], [...]] 
             for val in kwarg_value:
                 tables2, join_where2, where2, params2, table_count = _parse_lookup(val, opts, table_count)
                 tables.extend(tables2)
@@ -1372,7 +1480,12 @@ def _parse_lookup(kwarg_items, opts, table_count=0):
     return tables, join_where, where, params, table_count
 
 def function_get_sql_clause(opts, **kwargs):
+    '''
+    拼接 SQL
+    '''
+    # select 所有非 m2m 字段
     select = ["%s.%s" % (db.db.quote_name(opts.db_table), db.db.quote_name(f.column)) for f in opts.fields]
+    # 参数中指定的 tables, 参数中的 where 语句和 select 会用到.
     tables = [opts.db_table] + (kwargs.get('tables') and kwargs['tables'][:] or [])
     tables = [db.db.quote_name(t) for t in tables]
     where = kwargs.get('where') and kwargs['where'][:] or []

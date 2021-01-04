@@ -1,9 +1,10 @@
+
+# Django 0.90
+
 Django is a high-level Python Web framework that encourages rapid
 development and clean, pragmatic design.
 
-
-About this version
-==================
+## About this version
 
 This is the Django 0.90 "bugfixes" branch, which is intended to
 provide bugfix and patch support for users of Django 0.90 who have not
@@ -17,9 +18,7 @@ Django's trunk; Django is always evolving, and the latest and greatest
 features are only available to users of newer versions of the
 framework.
 
-
-More information
-================
+## More information
 
 The complete history of bugs fixed in this branch can be viewed online
 at http://code.djangoproject.com/log/django/branches/0.90-bugfixes.
@@ -33,9 +32,7 @@ Google Groups at http://groups.google.com/group/django-announce.
 The documentation for this version of Django has been frozen, and is
 available online at http://www.djangoproject.com/documentation/0_90/.
 
-
-Submitting bugs
-===============
+## Submitting bugs
 
 If you run into a bug in Django 0.90, please search the Django ticket
 database to see if the issue has already been reported; if not, please
@@ -46,3 +43,24 @@ If you're running into a bug which has been reported but not fixed,
 feel free to update the ticket with any additional information you
 have, and to assign it to 'ubernostrum' (AKA James Bennett, the
 maintainer of this branch).
+
+## 构建文档
+
+步骤:
+
+- 安装 sphinx
+
+- 进入 docs 目录, 执行 `make html`.
+
+  ```sh
+  $ cd docs
+  $ make html
+  ```
+
+文档质量不如当前新版本的 Django, 文档中的一些链接指向失效的 Django 在线文档. 
+
+在阅读代码之前推荐先读一下这份文档, 毕竟这个版本的 Django 距离现在已经 15 年了, 许多概念和现在的不一样.
+
+## 其它
+
+我是在 Python 2.7 下运行这个版本的 Django 的, 虽然那个时候 Python 2.7 还没发布.

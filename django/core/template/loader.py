@@ -155,6 +155,8 @@ class ExtendsNode(Node):
                     compiled_parent.nodelist[0].nodelist.append(block_node)
             else:
                 # Keep any existing parents and add a new one. Used by BlockNode.
+                # 这里的代码的作用: 将 parent_block 替换为 block_node, 并将 parent_block 添加 parent 链表的尾部.
+                # `add_parent` 方法一直递归直到 parent 链表尾部, 算法复杂度 O(n), 一个优化是用一个指针 tail 保存尾部的节点.
                 parent_block.parent = block_node.parent
                 parent_block.add_parent(parent_block.nodelist)
                 parent_block.nodelist = block_node.nodelist
@@ -170,6 +172,7 @@ def do_block(parser, token):
     block_name = bits[1]
     # Keep track of the names of BlockNodes found in this template, so we can
     # check for duplication.
+    # 检查是否有相同的 block, 这个方法有点 hack.
     try:
         if block_name in parser.__loaded_blocks:
             raise TemplateSyntaxError, "'%s' tag with name '%s' appears more than once" % (bits[0], block_name)
